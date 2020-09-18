@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta name="author" content="이규"
+	name="description" content="Tetris Homepage, home.html"
+	charset="utf-8">
+	<title>Tetris Game!!!</title>
+	<link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+	<script>
+		var Fame = new Array();	// 닉네임과 점수 저장할 배열
+
+		function startTetris(){	//테트리스 불러오기
+			if(!document.getElementById("iframe")){	//처음 1회만 생성
+				var tetrisDiv = document.getElementById("tetrisDiv");
+				var iframe = document.createElement("iframe");
+				var Img = document.getElementById("tetrisImg");
+				tetrisDiv.removeChild(Img);
+				iframe.id = "iframe";
+				iframe.src="tetris-base.html";
+				iframe.frameborder = "1";
+				iframe.width="500";
+				iframe.height="650";
+				iframe.position = "relative";
+				iframe.left = "1000px";
+				iframe.style.left = "2000";
+				tetrisDiv.appendChild(iframe);
+			}
+			else{	//누르면 재시작
+				var iframe = document.getElementById("iframe");
+				var order = "reload";
+				iframe.contentWindow.postMessage(order,"*");
+			}
+		}
+		window.addEventListener('message', function(e) {	//ID, Score에 대한 message를 받을때
+			Fame[Fame.length] = e.data;
+			Fame.sort(function(a, b) { // score 기준 내림차순
+			    return a.score > b.score ? -1 : a.score < b.score ? 1 : 0;
+			});
+			writeFame();
+		});
+		function writeFame(){	// Hall of Fame 작성, 단, 서버의 부재로 인해 정보는 저장 안된다. 파일 입출력을 통한 저장방법이 가능할 듯하다. 로컬 스토리지의 경우, key 값을 알 수가 없기에 사용불가. 적어도 key 값을 저장할 장소가 필요
+			var famebody = document.getElementById("fameTbody");
+			//새로운 객체 생성, 삽입
+			var newScore = document.createElement("tr");
+			famebody.appendChild(newScore);
+			//재정렬
+			var tr = famebody.getElementsByTagName("tr");
+			for(var i=0;i<tr.length;i++)
+				tr[i].innerHTML = "<td>"+Fame[i].ID+"</td><td>"+Fame[i].score+"</td>";
+		}
+	</script>
+</head>
+
+<link rel="stylesheet" type="text/css" href="tetris.css">
+
+<body>
+	<script type="text/javascript" src="js/bootstrap.js"></script>
+<header class="header">
+	<h1 id="header_title">Tetris Game!!!</h1>
+	<p align="center">This page is for Tetris-manias!
+		<br>Enjoy!</p>
+</header>
+<nav id="nav" class="nav">
+		<div id="menu" align="center">
+			<h2 id="menuTitle">Menu</h2>
+			<hr>
+			<ul>
+				<li><a href="https://en.wikipedia.org/wiki/Tetris" target="_blank">History of Tetris</a></li>
+				<li><a href="#play">Play Tetris!</a></li>
+				<li><a href="#howTo">How to Play</a></li>
+			</ul>
+		</div>
+</nav>
+
+<section id="section" class="section">
+	<article id="article1">
+		<h2 id="play" align="center" onclick="startTetris()">Play</h2>
+		<p align="center">[Click Play to play the game]</p>
+		<div  id="tetrisDiv" align="center"><img id="tetrisImg" src="media/tetris_main.png" height="650" width= "auto"></div>
+	</article>
+
+	<article>
+		<h2 id="howTo">How to Play</h2>
+		<ol>
+			<li>Move block to left and right with key ← →</li>
+			<li>To instantly place block on floor, press Spacebar</li>
+			<li>To get score, make more than 3 same colored blocks placed in a row, column, or diagonal</li>
+			<li>Control music if annoyed</li>
+			<li>Have Fun!!!</li>
+		</ol>
+	</article>
+</section>
+<aside id="aside" class="aside">
+	<h2 id="hallOfFame" align="center">Hall of Fame</h2>
+		<br><br><br>
+		<table align="center">
+			<thead>
+				<tr><td>Player</td><td>Score</td></tr></thead>
+			<tbody id="fameTbody">
+			</tbody>
+		</table>
+</aside>
+<footer class="footer">
+	<p>
+		Copyright 2019 by Marvin(이규), Game of ATARI GAMES Co.(1988)
+	</p>
+</footer>
+
+</body>
+</html>

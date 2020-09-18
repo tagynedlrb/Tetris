@@ -1,0 +1,415 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tetris Base</title>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+<style>
+table {
+	border : 1px solid blue; 
+	border-collapse : collapse;
+}
+td {
+	border : 1px solid lightgray;
+	width : 50px;
+	height : 50px;
+	padding : 0px;	
+}
+</style>
+<script>
+	function Block(x, y, color) {	//블록 개체 프로토타입
+		this.x = x;
+		this.y = y;
+		this.color = color;
+
+		// 필요한 메소드 삽입하세요.
+		this.draw = function () {	//해당 블록 색 변경
+			tds[x*10+y].style.backgroundColor = this.color;
+		}
+		this.getColor = function(){
+			return this.color;
+		}
+		this.equals = function(color){
+
+			if(tds[x*10+y].style.backgroundColor == color)
+				return 1;
+			else
+				return 0;
+		}
+	}
+
+
+	function SerialArray(){
+		this.rowArray = new Array();   //row index
+		this.colArray = new Array();   //col index
+		this.cnt = 0;   //Array 원소 개수
+
+		this.addArray = function(arrayobj){
+			//arrayobj의 값을 본인 Array에 저장. 단, 중복되는 첫번째 좌표 제외.
+			arrayobj.rowArray.splice(0,1);	//중복된 좌표 제거. 1번째 좌표부터.
+			arrayobj.colArray.splice(0,1);
+			
+			for(var i = 0; i<arrayobj.cnt-1; i++){
+    			this.rowArray.push(arrayobj.rowArray.shift());	//배열에 추가
+    			this.colArray.push(arrayobj.colArray.shift());
+    		}
+    		this.cnt += arrayobj.cnt - 1;	//cnt 재설정
+    	}
+		this.removeWithoutOne = function(row, col){  //row col 제외 !!블록!! 전부 제거
+			var delRow, delCol;
+			for(var i=0 ; i<this.cnt;i++){
+				delRow = this.rowArray[i];	// 앞에서부터 제거 => 반환
+				delCol = this.colArray[i];
+
+				if(!(delRow == row && delCol == col)){	//row, col 이 아닐 경우
+					blockLoc = delRow*10 + delCol;
+					checkList.add(delRow, delCol);	//checklist에 없앤 공간 추가
+					tds[blockLoc].style.backgroundColor = "white";
+					score += 100;	//score up!!
+				}
+			}
+			blockLoc = row*10 + col;
+			tds[blockLoc].style.backgroundColor = "white";
+			for(var i=0 ; i<this.cnt;i++)	//위에 블록이 있으면 떨어뜨리기
+				if(this.rowArray[i] != 0){	//예외처리 : 사라진 블록이 제일 윗부분일 경우 제외
+					checkDownBlock(this.rowArray[i], this.colArray[i]);
+				}
+			checkList.add(row, col);	//checklist에 없앤 공간 추가
+			score += 100;	//score up!!
+
+			this.clear();
+   		}
+ 		this.count = function(){   //본인거 개수 세기
+      		return this.cnt;	//or this.length
+   		}
+    	this.add = function(row, col){   //본인에게 저장
+      		this.rowArray[this.cnt] = row;
+      		this.colArray[this.cnt] = col;
+      		this.cnt++;
+   		}
+   		this.clear = function(){   //메모리 해제
+   			this.rowArray.splice(0, this.cnt+1) ;	this.colArray.splice(0, this.cnt+1);	this.cnt = 0;
+   		}
+	}
+
+	var tds = null;	//td elements
+	var blockLoc = 0;	//블록 위치
+	var colorlist = ["red", "skyblue", "purple", "pink", "yellow", "black"];//색 리스트
+	var blockColor = null;	//블록 색(colorlist에서 랜덤 지정)
+	var timerID =  null;
+	var blockArray = null;
+	window.focus();
+	var serialArray = new SerialArray();
+	var checkList = new SerialArray();
+	var score = 0;
+	var level = 1;
+	var speed = 300;	//떨어지는 속도
+	window.addEventListener('message', function(e) {	//ID, Score에 대한 message를 받을때
+		if(e.data == "reload")
+			window.location.reload();
+	});
+
+	function init() { 
+		// 10x10 2차원 배열 만들기 
+		// 블록 배열 생성 및 초기화
+		blockArray = new Array(10);
+		for(let i=0; i<10; i++) {
+			blockArray[i] = new Array(10);
+			for(let j=0; j<10; j++)
+				blockArray[i][j] = null; // 테스트 시에 3으로 초기화 
+		}
+	}
+	function setScore(){	//점수 표기
+		var title = document.getElementById("title");
+		title.innerHTML = score;
+	}
+	window.onload = function () {	//window load 시
+		init();	//배열 생성
+		tds = document.getElementsByTagName("td");		
+		randomColor();	//블록색 설정
+		tds[blockLoc].style.backgroundColor = blockColor;
+		//blockLoc 은 떨어지는 변수
+
+		// timer set
+		timerID = setInterval("moveDown()",speed);	//타이머로 매 300ms마다 moveDown 실행
+		setInterval("speedUp()", 60000);	//1분 간격으로 속도 변화
+		setInterval("setScore()", 10);
+	}
+
+	window.onkeydown = function (e) {
+		if(e.key == "ArrowRight") //우측 방향키 입력시
+			moveRight();
+		else if(e.key == "ArrowLeft") //좌측 방향키 입력시
+			moveLeft();
+		else if(e.keyCode == 32)	//Space Bar 입력시
+			moveAllDown();
+	}
+	function moveRight() {	//우로 한칸 움직이기
+		// 작성할 것
+		let rightcheck = "true";	//오른쪽 블록 색상 체크
+		if(blockLoc == 100)	//blockLoc이 100일 때 오류
+			rightcheck = "false";	//예외처리
+		else
+			rightcheck = tds[blockLoc+1].style.backgroundColor;
+	//	=============================================================	
+		if (blockLoc%10 == 9)	// 오른쪽 끝인 경우 //후에 10 => n, 9 => n-1로 수정 예정
+			return;
+		else if(rightcheck == "false" || !(rightcheck == "white" || rightcheck ==""))
+			return;	//다른 블록이 있어 색이 default(현재 white) 가 아닐때
+		else{
+			tds[blockLoc].style.backgroundColor = "white";
+			blockLoc += 1;
+			tds[blockLoc].style.backgroundColor = blockColor;
+		}
+	}
+	function moveLeft() {	//좌로 한칸 움직이기
+		// 작성할 것
+		let leftcheck = "true";	//왼쪽 블록 색상
+		if(blockLoc == 0)	//blockLoc == 0 일때 오류
+			leftcheck = "false";	//예외처리(현재 default 인 white 로 처리)
+		else
+			leftcheck = tds[blockLoc-1].style.backgroundColor;
+
+	//	=============================================================
+		if (blockLoc%10 == 0)	//왼쪽 끝인 경우	//후에 10 => n으로 수정 예정
+			return;
+		else if(leftcheck == "false" || !(leftcheck == "white" || leftcheck ==""))
+			return;	//다른 블록이 있어 색이 default(현재 white) 가 아닐때
+		else{
+			tds[blockLoc].style.backgroundColor = "white";
+			blockLoc -= 1;
+			tds[blockLoc].style.backgroundColor = blockColor;
+		}
+	}
+	function moveDown() {	//아래로 한칸 움직이기(기본 동작)
+
+		// 수정되어야 함
+		if(canDown()) {	//더 내려갈 수 있는 경우
+			tds[blockLoc].style.backgroundColor = "white";
+			blockLoc += 10;
+			tds[blockLoc].style.backgroundColor = blockColor;
+		}
+		else {
+			let startLoc = tds[0].style.backgroundColor;
+
+			//더 이상 쌓을 수 없을 경우 종료
+			if(!(startLoc == "" || startLoc == "white")){	//시작 점이 default 색이 아닐 경우
+				overGame();
+				return;
+			}
+			// 더 이상 내려 갈 수 없는 경우, 블록 객체를 배열에 삽입함
+			let i = Math.floor(blockLoc/10);
+			let j = blockLoc%10;
+	
+			blockArray[i][j] = new Block(i,j, blockColor);
+			blockArray[i][j].draw();
+			checkSerialAll(i, j);	//없앨 수 있는지 체크
+
+			startNew();	//새로운 블록 생성
+		}
+	}
+	function moveAllDown() {	//맨 아래로 내리기
+		// 작성할 것
+		let formerLoc = blockLoc;	//원래 블록 위치
+		while(canDown())	//아래로 내릴 수 있으면
+			blockLoc +=10;	//한칸 하강된 위치 저장
+		if(blockLoc == formerLoc)	//위치에 변함이 없으면 return
+			return;
+		else{	//원래 위치 초기화, 변경 후 위치로 색 변경
+			tds[formerLoc].style.backgroundColor = "white";
+			tds[blockLoc].style.backgroundColor = blockColor;
+		}
+
+		let i = Math.floor(blockLoc/10);
+		let j = blockLoc%10;
+	
+		blockArray[i][j] = new Block(i,j, blockColor);
+		blockArray[i][j].draw();
+		checkSerialAll(i, j);	//없앨 수 있는지 체크
+
+		startNew();	//새로운 블록 생성
+	}
+	function speedUp(){	//더 빠르게 떨어지게 스피드 조정, 레벨 표시
+		if(speed > 50){
+			speed -= 30;
+			level += 1;
+			var levelvalue = document.getElementById("level");
+			levelvalue.innerHTML = level;
+		}
+		clearInterval(timerID);
+		timerID = setInterval("moveDown()",speed);	//타이머로 매 300ms마다 moveDown 실행
+	}
+	function startNew() {	//새로운 블록 생성
+		// new start
+		blockLoc = 0;	//위치 초기화
+		randomColor();	//블록 색 초기화
+		tds[blockLoc].style.backgroundColor = blockColor;	//해당 위치 색 변경
+	}
+	function canDown() {	//아래로 블록을 더 내릴 수 있는 지 체크
+		// 수정되어야 함.
+		let underblockLoc = blockLoc + 10;
+		let undercheck = "true";
+		if (underblockLoc<100)	//가장 밑이 아닌 경우	//후에 100 => width.length*height.length 로 수정
+			undercheck = tds[underblockLoc].style.backgroundColor;
+		
+		if(blockLoc >= 90)	//맨 바닥인지 체크	//후에 90 => (width.length-1)*height.length 로 수정
+			return false;
+		else if(!(undercheck == ""||undercheck =="white"))	//밑에 다른 색이 존재할 경우
+			return false;	// 다른 블록이 아래 있을 경우
+		else
+			return true;
+	}
+	function randomColor(){	//블록색 무작위 변경
+		var n = colorlist.length;	//색 리스트 길이
+		blockColor = colorlist[Math.floor(Math.random()*n)];	//색 리스트 중 랜덤 지정 (0 ~ n-1)
+	}
+	function checkSerialAll(row, col) { // 현재 checkList에서 color 색으로 3개 연결된 블록이 있는 경우 serialArray에 삽입
+	   var color = tds[row*10+col].style.backgroundColor;
+	   var tmpArray = new SerialArray();
+	   for(var dir=1; dir<=4; dir++) {  //양옆 -1(가운데 원소 중복)
+	      var blocksConnected = countSerialAll(dir, row, col, color, tmpArray) + countSerialAll(dir+4, row, col, color, tmpArray) - 1;
+
+	    	if(blocksConnected >= 3) { // 어떤 방향인지 모르지만 dir 방향으로 발견
+	   // 연속된 블록들을발견하였다면, 처음에 시작된 블록은 중복하여 들어 있으므로 serialArray에서 처음 원소 제거
+	   // 처음 원소 제외하고 집어넣기
+		        serialArray.addArray(tmpArray);
+		        tmpArray.clear();
+    		}
+    		else {
+        	    tmpArray.clear(); // 중간에 만들어진 serialArray를 clear            
+    		}
+		}
+		// 발견하였다면, row. col 의 블록은 하나만 남기고 제거
+	   if(serialArray.count() != 0) {
+	       serialArray.removeWithoutOne(row, col);
+	       checkAllandProcess();
+	   }
+	}
+
+	function countSerialAll(dir, row, col, color, array) { // curLoc에서 dir 방향으로 color 색의 블록들의 연결된 개수 리턴
+	   if(row < 0 || row > 9 || col < 0 || col > 9) //범위 지정
+	      return 0;
+	   else if(blockArray[row][col] == null) // null일 경우 제외
+	      return 0;
+	   else if(!blockArray[row][col].equals(color)) 
+	      return 0;
+	   else {
+	      array.add(row, col); // 현재 블록 위치저장. 현재 발견한 블록
+	      switch(dir) {
+	      	case 1:           row--;   break;
+	        case 2: col++;    row--;   break;
+    	    case 3: col++;             break;            
+    	    case 4: col++;    row++;   break;
+       		case 5:           row++;   break;
+       		case 6: col--;    row++;   break;
+        	case 7: col--;             break;            
+       	 	case 8: col--;    row--;   break;                        
+       	 	default: // 심각한 오류 
+       	}
+	      // 1은 현재 위치에 블럭이 1개 있다는 뜻 
+	    return 1 + countSerialAll(dir, row, col, color, array);
+   		}
+	}
+	function checkDownBlock(row, col){
+	//	바로 위에 뭐가 있으면, 이어져 있는 구간까지 
+	//	탐색하고, 전부 한칸씩 내리기
+		let rowExist = row - 1;
+		let colExist = col;
+
+		blockLoc = rowExist*10+colExist;
+		blockColor = tds[blockLoc].style.backgroundColor;
+
+		while(!(blockColor == ""||blockColor =="white")){	//색이 존재하면
+
+			let formerLoc = blockLoc;	//원래 블록 위치
+			while(canDown())	//아래로 내릴 수 있으면
+				blockLoc +=10;	//한칸 하강된 위치 저장
+			if(blockLoc == formerLoc)	//위치에 변함이 없으면 return
+				return;
+			else{	//원래 위치 초기화, 변경 후 위치로 색 변경
+				tds[formerLoc].style.backgroundColor = "white";
+				tds[blockLoc].style.backgroundColor = blockColor;
+			}
+						//바닥으로 내리기
+			if(rowExist > 0){	//윗칸으로 좌표 변경. 단, 맨 윗칸이 아닐 경우에만
+				rowExist -= 1;
+				blockLoc = rowExist*10+colExist;
+				blockColor = tds[blockLoc].style.backgroundColor;
+			}
+			else	//맨 윗칸에 도달했을 경우 종료
+				return;
+		}
+	}
+	var rowCheck, colCheck;	//확인할 col
+		
+	function checkAllandProcess() { // 방금 떨어진 블록의 위치, row, col
+	//checkList에 row, col 삽입	=> removeWithoutOne 에서 수행함
+		while(true) {
+			if(checkList.count() == 0)	//checkList에 들어 있는 개수가 0이면 종료
+				break;
+			rowCheck = checkList.rowArray.shift();	//checkList에서 저장된 블록의 row, col 알아내고 삭제
+			colCheck = checkList.colArray.shift();
+			checkList.cnt--;
+
+			blockLoc = rowCheck*10+colCheck;	//좌표 설정
+			blockColor = tds[blockLoc].style.backgroundColor;
+			if(!(blockColor == ""||blockColor =="white"))	//만일 row, col 위치에 블록이 있을 경우만
+				checkSerialAll(rowCheck, colCheck);	//체크.
+		}
+	}
+	function overGame() {	//게임오버
+		if(timerID != null) {
+			clearInterval(timerID);
+			timerID = null;
+			alert("Game Over!!!!");
+
+			var ID = prompt("Enter your nickname!(In 8 Characters)","anonymous");
+			if(ID != null){	//ID, score 전송
+				uploadScore();
+				function uploadScore(){
+					window.parent.postMessage({ ID, score }, '*');	// origin 에 대한 공부가 필요.
+				}
+			}
+			var reboot = confirm("Start Again?");
+			if(reboot == true){	// 재시작 동의
+				window.location.reload();	//창 새로고침	//reload window
+			}
+			else{	//그만 둘 시 노래 끄기
+				var audio = document.getElementById("audio");
+				audio.pause();
+			}
+		}
+	}
+</script>
+</head>
+<body>
+<h3 align="center">Tetris &nbsp&nbsp&nbsp<strong id="title">0</strong>&nbsp&nbsp&nbsp <span>Level</span>&nbsp&nbsp<strong id="level">1</strong></h3>
+<hr>
+<table>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+<p align="center"><audio id="audio" src="media/Tetris bgm.mp3" autoplay loop volume='0.1' controls></audio></p>
+</body>
+</html>
